@@ -1,0 +1,22 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: easytrip-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-easytrip_db}
+      POSTGRES_USER: ${DB_USER:-easytrip_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-easytrip_password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - easytrip_db_data:/var/lib/postgresql/data
+      - ./docker/init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-easytrip_user} -d ${DB_NAME:-easytrip_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  easytrip_db_data:
