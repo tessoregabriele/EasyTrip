@@ -26,6 +26,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+class LLMError(Exception):
+    """
+    Errore generico di comunicazione con il provider LLM (rate limit/quota
+    esaurita, richiesta rifiutata, timeout, errore di rete, ...). Ogni client
+    concreto traduce qui le proprie eccezioni specifiche dell'SDK, così
+    l'orchestratore può gestire un errore del provider senza sapere quale
+    provider è effettivamente in uso né i dettagli della sua libreria.
+    """
+    pass
+
+
 @dataclass
 class ToolCall:
     id: str

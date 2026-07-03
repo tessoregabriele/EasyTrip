@@ -78,6 +78,19 @@ class Command(BaseCommand):
             ('Barcelona Beach Resort', barcelona, 4, 90, "famiglie, giovani"),
             ('Paris Charme Hotel', paris, 5, 150, "coppie, viaggiatori di lusso"),
             ('Milano Business Inn', milan, 3, 60, "viaggiatori business, coppie"),
+
+            # Nuovi hotel Roma/Parigi
+            ('Trastevere Design Hotel', rome, 4, 95, "coppie, giovani professionisti"),
+            ('Residenza Vaticano Suites', rome, 3, 60, "famiglie, pellegrini"),
+            ('Rome Luxury Palace', rome, 5, 220, "viaggiatori di lusso, coppie"),
+            ('Aventino Garden Hotel', rome, 4, 100, "coppie, amanti della natura"),
+            ('Termini Central Suites', rome, 3, 55, "giovani, viaggiatori business"),
+            ('Monti Boutique B&B', rome, 3, 70, "coppie, giovani"),
+            ('Le Marais Boutique Hotel', paris, 4, 130, "coppie, amanti dell'arte"),
+            ('Montmartre Cozy Rooms', paris, 3, 75, "giovani, artisti"),
+            ('Paris Grand Palace Hotel', paris, 5, 240, "viaggiatori di lusso, coppie"),
+            ('Saint-Germain Charme Rooms', paris, 4, 140, "coppie, amanti dell'arte"),
+            ('Champs-Élysées Prestige Hotel', paris, 5, 260, "viaggiatori di lusso, coppie"),
         ]
         hotels = []
         for name, city, stars, base_price, target in hotels_data:
@@ -118,6 +131,29 @@ class Command(BaseCommand):
             ('Crociera sulla Senna', paris, 'relax', 35, "coppie, famiglie"),
             ('Tour della Torre Eiffel e Louvre', paris, 'cultura', 50, "famiglie, amanti dell'arte"),
             ('Passeggiata nei Navigli e aperitivo', milan, 'nightlife', 20, "giovani, coppie"),
+
+            # Nuove attività Roma/Parigi
+            ('Visita ai Musei Vaticani e Cappella Sistina', rome, 'cultura', 55, "famiglie, amanti dell'arte"),
+            ('Corso di pizza romana a Trastevere', rome, 'cibo-vino', 60, "famiglie, amanti del cibo"),
+            ('Tour in bici lungo l\'Appia Antica', rome, 'sport', 40, "sportivi, giovani"),
+            ('Spa e relax nel quartiere Prati', rome, 'relax', 85, "coppie"),
+            ('Degustazione di street food romano a Testaccio', rome, 'cibo-vino', 45, "giovani, amanti del cibo"),
+            ('Visita guidata al Pantheon e Piazza Navona', rome, 'cultura', 30, "famiglie, turisti"),
+            ('Degustazione di vini nei Castelli Romani', rome, 'cibo-vino', 65, "coppie, amanti del vino"),
+            ('Escursione al Parco Nazionale del Circeo', rome, 'natura', 30, "famiglie, amanti della natura"),
+            ('Cena gourmet stellata Michelin con vista sul Colosseo', rome, 'cibo-vino', 180, "coppie, buongustai"),
+            ('Tour privato in elicottero su Roma', rome, 'cultura', 260, "coppie, viaggiatori di lusso"),
+            ('Tour privato dei Musei Vaticani in notturna', rome, 'cultura', 140, "coppie, amanti dell'arte"),
+            ('Spa privata con vista sui Fori Imperiali', rome, 'relax', 120, "coppie"),
+            ('Escursione esclusiva in barca a vela sul litorale di Ostia', rome, 'natura', 110, "coppie, amanti del mare"),
+
+            ("Visita al Museo d'Orsay", paris, 'cultura', 45, "amanti dell'arte, famiglie"),
+            ('Passeggiata nel Jardin du Luxembourg', paris, 'natura', 10, "famiglie, coppie"),
+            ('Degustazione di formaggi e vini francesi', paris, 'cibo-vino', 70, "coppie, amanti del vino"),
+            ('Tour in bici a Montmartre', paris, 'sport', 35, "giovani, sportivi"),
+            ('Serata jazz in un club di Saint-Germain', paris, 'nightlife', 40, "coppie, giovani"),
+            ('Spa e relax lungo la Senna', paris, 'relax', 95, "coppie"),
+            ('Passeggiata fotografica tra i ponti della Senna', paris, 'cultura', 30, "coppie, amanti della fotografia"),
         ]
         for name, city, cat_slug, base_price, target in activities_data:
             activity, _ = Activity.objects.get_or_create(

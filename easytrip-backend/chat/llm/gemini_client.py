@@ -8,9 +8,9 @@ qui dentro, così il resto dell'app non se ne accorge.
 """
 import json
 from google import genai
-from google.genai import types
+from google.genai import errors as genai_errors, types
 
-from .base import LLMClient, LLMResponse, ToolCall
+from .base import LLMClient, LLMResponse, ToolCall, LLMError
 
 
 DEFAULT_MODEL = "gemini-2.0-flash"
@@ -80,11 +80,17 @@ class GeminiClient(LLMClient):
         if tools:
             config_kwargs["tools"] = self._to_gemini_tools(tools)
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=contents,
-            config=types.GenerateContentConfig(**config_kwargs),
-        )
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=types.GenerateContentConfig(**config_kwargs),
+            )
+        except genai_errors.APIError as e:
+            # Copre rate limit/quota esaurita (429), richieste rifiutate ed
+            # errori lato server: l'orchestratore li gestisce tutti allo
+            # stesso modo tramite LLMError, indipendentemente dal provider.
+            raise LLMError(str(e)) from e
 
         text_parts = []
         tool_calls = []

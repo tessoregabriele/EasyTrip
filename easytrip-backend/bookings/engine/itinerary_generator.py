@@ -20,7 +20,8 @@ from catalog.models import Flight, HotelAvailability, ActivityAvailability
 from catalog.rag.search import search_activities_semantic
 
 
-DEFAULT_TRIP_NIGHTS = 4  # durata standard di un viaggio quando non altrimenti vincolata da un volo di ritorno specifico
+DEFAULT_TRIP_NIGHTS = 4  # durata standard di un viaggio quando l'utente non ne specifica una
+RETURN_FLIGHT_SEARCH_SLACK_DAYS = 10  # margine di ricerca oltre la durata richiesta, per compensare l'assenza di un volo esattamente in quella data
 
 
 @dataclass
@@ -46,6 +47,7 @@ class ItineraryResult:
                 "departure_airport": self.outbound_flight.departure_airport.iata_code,
                 "arrival_airport": self.outbound_flight.arrival_airport.iata_code,
                 "departure_datetime": self.outbound_flight.departure_datetime.isoformat(),
+                "arrival_datetime": self.outbound_flight.arrival_datetime.isoformat(),
                 "price": str(self.outbound_flight.price),
             },
             "return_flight": {
@@ -54,6 +56,7 @@ class ItineraryResult:
                 "departure_airport": self.return_flight.departure_airport.iata_code,
                 "arrival_airport": self.return_flight.arrival_airport.iata_code,
                 "departure_datetime": self.return_flight.departure_datetime.isoformat(),
+                "arrival_datetime": self.return_flight.arrival_datetime.isoformat(),
                 "price": str(self.return_flight.price),
             },
             "hotel_stays": [
@@ -82,11 +85,19 @@ def _month_date_range(year: int, month: int) -> tuple[date, date]:
     return date(year, month, 1), date(year, month, last_day)
 
 
-def _find_round_trip_flights(country_id: int, year: int, month: int):
+def _find_round_trip_flights(country_id: int, year: int, month: int, requested_nights: int | None = None):
     """
     Trova la coppia di voli andata/ritorno più economica disponibile nel
     mese richiesto, verso una qualunque città della nazione di interesse.
+
+    Il volo di ritorno viene scelto tra quelli disponibili come il più
+    vicino possibile alla durata di soggiorno richiesta (requested_nights,
+    in notti) rispetto alla data dell'andata - NON semplicemente il primo
+    ritorno disponibile in ordine cronologico, altrimenti un utente che
+    chiede "una settimana" potrebbe ricevere un soggiorno di 2 giorni solo
+    perché quel volo di ritorno capitava prima nel catalogo.
     """
+    target_nights = requested_nights or DEFAULT_TRIP_NIGHTS
     month_start, month_end = _month_date_range(year, month)
 
     outbound_candidates = (
@@ -102,21 +113,33 @@ def _find_round_trip_flights(country_id: int, year: int, month: int):
     )
 
     for outbound in outbound_candidates[:20]:  # limitiamo i candidati esaminati per restare efficienti
-        # Cerchiamo un ritorno dalla stessa città visitata, in una data successiva all'andata
-        return_candidates = (
+        outbound_date = outbound.departure_datetime.date()
+        desired_return_date = outbound_date + timedelta(days=target_nights)
+
+        # Cerchiamo un ritorno dalla stessa città visitata, in una data successiva
+        # all'andata, con un margine attorno alla durata richiesta per compensare
+        # l'eventuale assenza di un volo esattamente in quella data.
+        return_candidates = list(
             Flight.objects.filter(
                 departure_airport=outbound.arrival_airport,
                 arrival_airport=outbound.departure_airport,
-                departure_datetime__date__gt=outbound.departure_datetime.date(),
-                departure_datetime__date__lte=month_end + timedelta(days=5),  # piccolo margine oltre fine mese
+                departure_datetime__date__gt=outbound_date,
+                departure_datetime__date__lte=desired_return_date + timedelta(days=RETURN_FLIGHT_SEARCH_SLACK_DAYS),
                 seats_available__gt=0,
             )
             .select_related('departure_airport', 'arrival_airport')
-            .order_by('departure_datetime')
         )
-        return_flight = return_candidates.first()
-        if return_flight:
-            return outbound, return_flight
+        if not return_candidates:
+            continue
+
+        # Tra i ritorni disponibili, scegliamo quello con la data più vicina
+        # alla durata di soggiorno richiesta (non il più economico né il più
+        # vicino in assoluto all'andata).
+        return_flight = min(
+            return_candidates,
+            key=lambda f: abs((f.departure_datetime.date() - desired_return_date).days),
+        )
+        return outbound, return_flight
 
     return None, None
 
@@ -161,11 +184,18 @@ def _select_daily_activities(
     Seleziona un'attività per ogni giorno del soggiorno, privilegiando quelle
     in linea con le preferenze dell'utente (categoria + similarità semantica
     RAG) e rispettando il budget rimanente complessivo per le attività.
+
+    La prima proposta di itinerario non ripete mai la stessa attività in più
+    giorni (ogni attività già scelta per un giorno precedente viene esclusa
+    dai candidati dei giorni successivi): l'utente può comunque richiedere
+    esplicitamente un doppione in seguito tramite sostituisci_attivita_giorno
+    (vedi find_alternative_activity, che ha un comportamento distinto).
     """
     from catalog.models import Activity
 
     selected = []
     remaining_budget = max_total_budget
+    used_activity_ids: set[int] = set()
 
     # Costruiamo una query testuale a partire dalle preferenze per il RAG
     preference_query = ", ".join(preferences) if preferences else "esperienza turistica generica"
@@ -175,7 +205,7 @@ def _select_daily_activities(
             city_id=city_id,
             availabilities__date=day,
             availabilities__spots_available__gt=0,
-        ).distinct()
+        ).exclude(id__in=used_activity_ids).distinct()
 
         if preferences:
             # Prima proviamo a filtrare per categoria esatta (vincolo più forte)
@@ -200,6 +230,7 @@ def _select_daily_activities(
         if chosen:
             selected.append(chosen)
             remaining_budget -= chosen['price']
+            used_activity_ids.add(chosen['activity'].id)
 
     return selected, (max_total_budget - remaining_budget)
 
@@ -210,13 +241,16 @@ def generate_itinerary(
     travel_month: int,
     activity_preferences: list[str],
     travel_year: int | None = None,
+    requested_nights: int | None = None,
 ) -> ItineraryResult:
     """
     Punto di ingresso principale del motore. Algoritmo (greedy, in ordine di
     priorità sui vincoli più rigidi):
 
-    1. Trova la coppia di voli andata/ritorno più economica nel mese richiesto.
-    2. Determina le notti di soggiorno dalle date dei voli.
+    1. Trova la coppia di voli andata/ritorno più economica nel mese richiesto,
+       scegliendo il ritorno che meglio rispetta la durata di soggiorno
+       richiesta (requested_nights).
+    2. Determina le notti di soggiorno dalle date dei voli effettivamente trovati.
     3. Seleziona un hotel che copra tutte le notti, nel budget rimanente.
     4. Seleziona un'attività per ogni giorno, secondo preferenze/RAG, nel
        budget rimanente.
@@ -230,7 +264,7 @@ def generate_itinerary(
         year = date.today().year + (1 if travel_month <= date.today().month else 0)
 
     # --- 1. Voli ---
-    outbound, return_flight = _find_round_trip_flights(country_id, year, travel_month)
+    outbound, return_flight = _find_round_trip_flights(country_id, year, travel_month, requested_nights)
     if not outbound or not return_flight:
         return ItineraryResult(
             success=False,
@@ -288,7 +322,8 @@ def generate_itinerary(
 
 
 def find_alternative_activity(
-    city_id: int, day: date, max_budget: Decimal, preferences: list[str], exclude_activity_id: int | None = None,
+    city_id: int, day: date, max_budget: Decimal, preferences: list[str],
+    exclude_activity_id: int | None = None, exclude_activity_ids: list[int] | None = None,
 ) -> dict | None:
     """
     Trova UNA singola attività alternativa per un giorno specifico, usata dal
@@ -296,6 +331,11 @@ def find_alternative_activity(
     soddisfatto dell'attività proposta per un determinato giorno e ne vuole
     un'altra). Esclude esplicitamente l'attività attualmente assegnata, così
     non rischiamo di riproporre la stessa opzione che l'utente ha già scartato.
+
+    exclude_activity_ids permette di escludere anche le attività già usate in
+    ALTRI giorni dell'itinerario, per evitare doppioni - il chiamante lo
+    valorizza di default e lo omette solo se l'utente ha esplicitamente
+    chiesto di poter ripetere un'attività già presente altrove.
 
     Ritorna None se non viene trovata nessuna alternativa entro il budget.
     """
@@ -309,6 +349,8 @@ def find_alternative_activity(
 
     if exclude_activity_id:
         available_qs = available_qs.exclude(id=exclude_activity_id)
+    if exclude_activity_ids:
+        available_qs = available_qs.exclude(id__in=exclude_activity_ids)
 
     if preferences:
         category_filtered = available_qs.filter(category__slug__in=preferences)
@@ -368,3 +410,43 @@ def find_alternative_hotel(
             }
 
     return best_option
+
+
+def find_alternative_flight(
+    departure_airport_id: int, arrival_airport_id: int, flight_date: date,
+    max_budget: Decimal, exclude_flight_id: int | None = None,
+):
+    """
+    Trova un volo alternativo sulla STESSA tratta e nella STESSA data di uno
+    che non è più disponibile, usato dal passaggio di riconferma finale
+    (conferma_itinerario_finale) quando un volo dell'itinerario in revisione
+    risulta esaurito rispetto a quando era stato proposto.
+
+    Cerca deliberatamente solo nella stessa data (a differenza di
+    _find_round_trip_flights, che ha un margine di alcuni giorni): cambiare
+    la data di un volo già approvato dall'utente sposterebbe le notti di
+    hotel e le attività già scelte per il resto dell'itinerario, che qui
+    vogliamo lasciare intatte. Se non c'è un altro volo lo stesso giorno
+    sulla stessa rotta, l'itinerario richiede una revisione più ampia
+    (gestita a monte da chi chiama questa funzione).
+
+    Ritorna None se non viene trovata nessuna alternativa entro il budget.
+    """
+    candidates = (
+        Flight.objects.filter(
+            departure_airport_id=departure_airport_id,
+            arrival_airport_id=arrival_airport_id,
+            departure_datetime__date=flight_date,
+            seats_available__gt=0,
+        )
+        .select_related('departure_airport', 'arrival_airport')
+        .order_by('price')
+    )
+    if exclude_flight_id:
+        candidates = candidates.exclude(id=exclude_flight_id)
+
+    for flight in candidates:
+        if flight.price <= max_budget:
+            return flight
+
+    return None

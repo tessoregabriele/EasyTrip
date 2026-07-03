@@ -14,6 +14,7 @@ import logging
 
 from django.db import transaction
 
+from .base import LLMError
 from .factory import get_llm_client
 from .tools import TOOL_DEFINITIONS, execute_tool
 from ..models import Conversation, Message
@@ -69,6 +70,13 @@ Conferma finale - fallo solo a questo punto:
   bene così"), usa il tool conferma_itinerario_finale per salvare la \
   prenotazione. Non usarlo mai prima di questa conferma esplicita, e non \
   usarlo se l'utente ha ancora dubbi o richieste di modifica in sospeso.
+- Questo tool ricontrolla la disponibilità reale di ogni componente (può \
+  essere passato del tempo dalla proposta iniziale). Se risponde con \
+  prenotato=false, vuol dire che qualcosa non era più disponibile ed è \
+  stato sostituito o rimosso automaticamente: presenta chiaramente le \
+  modifiche elencate in problemi_disponibilita e chiedi all'utente una \
+  NUOVA conferma esplicita prima di richiamare il tool. Solo quando \
+  risponde con prenotato=true la prenotazione è stata davvero salvata.
 
 Usa il tool cerca_attivita se l'utente vuole esplorare alternative o avere \
 più dettagli su cosa fare in una città, anche senza generare un itinerario \
@@ -79,6 +87,26 @@ che lavorano sui dati reali del catalogo.
 """
 
 MAX_TOOL_ITERATIONS = 5  # tetto di sicurezza: evita loop infiniti se l'LLM continua a richiedere tool
+
+WELCOME_MESSAGE = """\
+Benvenuto su EasyTrip! Sono il tuo assistente virtuale personale, e sono qua \
+per aiutarti a pianificare il viaggio che stai cercando: se vuoi iniziamo \
+subito, basta che mi dici solo dove vuoi andare e quando, quanto vuoi che la \
+tua vacanza duri, qual è il budget che non vorresti superare, e che tipo di \
+vacanza stai cercando.\
+"""
+
+
+def create_welcome_message(conversation: Conversation) -> Message:
+    """
+    Crea il messaggio di apertura automatico di una nuova conversazione. È
+    statico (non generato dall'LLM) perché il suo contenuto non dipende da
+    nessun dato utente: evitiamo così una chiamata LLM inutile ad ogni nuova
+    chat aperta.
+    """
+    return Message.objects.create(
+        conversation=conversation, role=Message.Role.ASSISTANT, content=WELCOME_MESSAGE,
+    )
 
 
 def _build_message_history(conversation: Conversation) -> list[dict]:
@@ -135,9 +163,28 @@ def handle_user_message(conversation: Conversation, user_text: str) -> Message:
     tool_exchange_log = []  # traccia assistant/tool messages generati in questo turno, per la history futura
 
     for iteration in range(MAX_TOOL_ITERATIONS):
-        response = llm.chat_with_tools(
-            messages=messages, tools=TOOL_DEFINITIONS, system_prompt=SYSTEM_PROMPT,
-        )
+        try:
+            response = llm.chat_with_tools(
+                messages=messages, tools=TOOL_DEFINITIONS, system_prompt=SYSTEM_PROMPT,
+            )
+        except LLMError as e:
+            # Errore del provider (quota/rate-limit esaurita, richiesta
+            # rifiutata, timeout, ...): invece di far fallire la richiesta
+            # HTTP con un 500, rispondiamo con un messaggio "dell'assistente"
+            # che spiega il problema - l'utente può semplicemente riprovare.
+            logger.warning(
+                "Errore dal provider LLM per la conversation #%d: %s", conversation.id, e,
+            )
+            return Message.objects.create(
+                conversation=conversation,
+                role=Message.Role.ASSISTANT,
+                content=(
+                    "Mi dispiace, il servizio di intelligenza artificiale non è al momento "
+                    "disponibile (potrebbe aver raggiunto un limite temporaneo di richieste). "
+                    "Riprova tra qualche istante."
+                ),
+                metadata={"tool_exchange": tool_exchange_log, "errore": "llm_provider_error"},
+            )
 
         if not response.has_tool_calls:
             # Il modello ha risposto con testo finale: il turno è concluso.

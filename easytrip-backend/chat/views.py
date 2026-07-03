@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, ConversationListSerializer, MessageSerializer
-from .llm.orchestrator import handle_user_message
+from .llm.orchestrator import handle_user_message, create_welcome_message
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -21,7 +21,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return ConversationSerializer
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        conversation = serializer.save(user=self.request.user)
+        create_welcome_message(conversation)
 
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
