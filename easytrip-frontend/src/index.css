@@ -1,0 +1,336 @@
+:root {
+  --text: #2b2b33;
+  --text-muted: #6b6375;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --accent: #aa3bff;
+  font: 16px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 8px;
+}
+
+p {
+  margin: 0 0 8px;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Layout generale */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header__brand {
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.app-nav {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+}
+
+.app-header__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-content {
+  flex: 1;
+  padding: 24px;
+}
+
+/* Auth pages */
+.auth-page {
+  max-width: 360px;
+  margin: 40px auto;
+}
+
+.auth-page form,
+.profile-page form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-page label,
+.profile-page label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.form-error {
+  color: #c0392b;
+}
+
+.form-success {
+  color: #27ae60;
+}
+
+/* Dashboard */
+.dashboard-page section {
+  margin-bottom: 24px;
+}
+
+.dashboard-page__hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-page li,
+.bookings-list-page li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Chat */
+.chat-page {
+  display: flex;
+  gap: 24px;
+  height: calc(100svh - 120px);
+}
+
+.chat-sidebar {
+  width: 220px;
+  border-right: 1px solid var(--border);
+  padding-right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-sidebar li {
+  padding: 6px 0;
+}
+
+.chat-sidebar li.active a {
+  font-weight: bold;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.message-bubble {
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f4f3ec;
+  text-align: left;
+}
+
+.message-bubble--user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+}
+
+.message-bubble__role {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-input input {
+  flex: 1;
+}
+
+/* Itinerary timeline (sequenza di schede: voli, hotel, giorni) */
+.itinerary-timeline {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: left;
+  max-width: 480px;
+}
+
+.itinerary-timeline__items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.itinerary-item-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--accent);
+}
+
+.itinerary-item-card h4 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.itinerary-item-card p {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
+.itinerary-item-card ul {
+  margin: 4px 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+
+.itinerary-item-card__route {
+  font-weight: bold;
+}
+
+.itinerary-item-card__footer {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.itinerary-item-card__muted {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.itinerary-item-card--flight {
+  border-left-color: #2980b9;
+}
+
+.itinerary-item-card--hotel {
+  border-left-color: #8e44ad;
+}
+
+.itinerary-item-card--day {
+  border-left-color: #27ae60;
+  margin-left: 16px;
+}
+
+.itinerary-card__footer {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.itinerary-card__actions {
+  margin-top: 12px;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.badge--pending {
+  background: #fdebd0;
+  color: #a04000;
+}
+
+.badge--draft {
+  background: #eaeaea;
+}
+
+.badge--confirmed {
+  background: #d4efdf;
+  color: #196f3d;
+}
+
+.badge--cancelled {
+  background: #fadbd8;
+  color: #922b21;
+}
+
+/* Booking detail */
+.booking-detail-page section {
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.booking-detail-page__actions {
+  display: flex;
+  gap: 8px;
+}
