@@ -47,14 +47,36 @@ e pgvector.
 
 ## Come avviare il progetto
 
-### 1. Database
+### Primo avvio (Windows)
+
+Su Windows, `first_start.bat` automatizza tutto il setup iniziale: avvia il
+database Docker, crea il virtualenv e installa le dipendenze backend,
+genera il file `.env` del backend con una `SECRET_KEY` casuale, esegue le
+migrazioni, crea il superuser, popola i dati di esempio, genera gli
+embedding per il RAG, e installa le dipendenze frontend.
+
+```bash
+first_start.bat
+```
+
+Va lanciato una sola volta, dopo il clone della repo. Al termine ricorda
+di inserire una API key valida (Groq o Gemini) in `easytrip-backend\.env`
+prima di avviare il progetto.
+
+Dopo il primo avvio, per le esecuzioni successive bastano
+`start_all.bat` (avvia database, backend e frontend) e `stop_all.bat`
+(ferma tutto).
+
+### Setup manuale (macOS/Linux o passo per passo)
+
+#### 1. Database
 
 ```bash
 cd easytrip-backend
 docker compose up -d
 ```
 
-### 2. Backend
+#### 2. Backend
 
 ```bash
 python -m venv venv
@@ -76,7 +98,7 @@ python manage.py runserver
 
 Backend disponibile su `http://localhost:8000`.
 
-### 3. Frontend
+#### 3. Frontend
 
 In un secondo terminale:
 
